@@ -8,6 +8,8 @@ import ltc_model as ltc
 from ctrnn_model import CTRNN, NODE, CTGRU
 import argparse
 
+tf.compat.v1.disable_eager_execution()
+
 def load_trace(filename):
     df = pd.read_csv(filename,header=0)
     
@@ -102,15 +104,15 @@ class GestureModel:
     def __init__(self,model_type,model_size,learning_rate = 0.001):
         self.model_type = model_type
         self.constrain_op = None
-        self.x = tf.placeholder(dtype=tf.float32,shape=[None,None,32])
-        self.target_y = tf.placeholder(dtype=tf.int32,shape=[None,None])
+        self.x = tf.compat.v1.placeholder(dtype=tf.float32,shape=[None,None,32])
+        self.target_y = tf.compat.v1.placeholder(dtype=tf.int32,shape=[None,None])
 
         self.model_size = model_size
         head = self.x
         if(model_type == "lstm"):
-            self.fused_cell = tf.nn.rnn_cell.LSTMCell(model_size)
+            self.fused_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(model_size)
 
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         elif(model_type.startswith("ltc")):
             learning_rate = 0.01 # LTC needs a higher learning rate
             self.wm = ltc.LTCCell(model_size)
@@ -121,35 +123,35 @@ class GestureModel:
             else:
                 self.wm._solver = ltc.ODESolver.SemiImplicit
 
-            head,_ = tf.nn.dynamic_rnn(self.wm,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.wm,head,dtype=tf.float32,time_major=True)
             self.constrain_op = self.wm.get_param_constrain_op()
         elif(model_type == "node"):
             self.fused_cell = NODE(model_size,cell_clip=-1)
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         elif(model_type == "ctgru"):
             self.fused_cell = CTGRU(model_size,cell_clip=-1)
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         elif(model_type == "ctrnn"):
             self.fused_cell = CTRNN(model_size,cell_clip=-1,global_feedback=True)
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         else:
             raise ValueError("Unknown model type '{}'".format(model_type))
 
 
-        self.y = tf.layers.Dense(5,activation=None)(head)
+        self.y = tf.compat.v1.layers.Dense(5,activation=None)(head)
         print("logit shape: ",str(self.y.shape))
-        self.loss = tf.reduce_mean(tf.losses.sparse_softmax_cross_entropy(
+        self.loss = tf.reduce_mean(input_tensor=tf.compat.v1.losses.sparse_softmax_cross_entropy(
             labels = self.target_y,
             logits = self.y,
         ))
-        optimizer = tf.train.AdamOptimizer(learning_rate)
+        optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate)
         self.train_step = optimizer.minimize(self.loss)
 
         model_prediction = tf.argmax(input=self.y, axis=2)
-        self.accuracy = tf.reduce_mean(tf.cast(tf.equal(model_prediction, tf.cast(self.target_y,tf.int64)), tf.float32))
+        self.accuracy = tf.reduce_mean(input_tensor=tf.cast(tf.equal(model_prediction, tf.cast(self.target_y,tf.int64)), tf.float32))
 
-        self.sess = tf.InteractiveSession()
-        self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.compat.v1.InteractiveSession()
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         self.result_file = os.path.join("results","gesture","{}_{}.csv".format(model_type,model_size))
         if(not os.path.exists("results/gesture")):
@@ -162,7 +164,7 @@ class GestureModel:
         if(not os.path.exists("tf_sessions/gesture")):
             os.makedirs("tf_sessions/gesture")
             
-        self.saver = tf.train.Saver()
+        self.saver = tf.compat.v1.train.Saver()
 
     def save(self):
         self.saver.save(self.sess, self.checkpoint_path)

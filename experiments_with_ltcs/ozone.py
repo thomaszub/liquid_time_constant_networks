@@ -9,6 +9,8 @@ from ctrnn_model import CTRNN, NODE, CTGRU
 import argparse
 import datetime as dt
 
+tf.compat.v1.disable_eager_execution()
+
 def to_float(v):
     if(v == "?"):
         return 0
@@ -112,15 +114,15 @@ class OzoneModel:
         self.constrain_op = []
         self.sparsity_level = sparsity_level
 
-        self.x = tf.placeholder(dtype=tf.float32,shape=[None,None,72])
-        self.target_y = tf.placeholder(dtype=tf.int64,shape=[None,None])
+        self.x = tf.compat.v1.placeholder(dtype=tf.float32,shape=[None,None,72])
+        self.target_y = tf.compat.v1.placeholder(dtype=tf.int64,shape=[None,None])
 
         self.model_size = model_size
         head = self.x
         if(model_type == "lstm"):
-            self.fused_cell = tf.nn.rnn_cell.LSTMCell(model_size)
+            self.fused_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(model_size)
 
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         elif(model_type.startswith("ltc")):
             learning_rate = 0.01 # LTC needs a higher learning rate
             self.wm = ltc.LTCCell(model_size)
@@ -131,17 +133,17 @@ class OzoneModel:
             else:
                 self.wm._solver = ltc.ODESolver.SemiImplicit
 
-            head,_ = tf.nn.dynamic_rnn(self.wm,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.wm,head,dtype=tf.float32,time_major=True)
             self.constrain_op.extend(self.wm.get_param_constrain_op())
         elif(model_type == "node"):
             self.fused_cell = NODE(model_size,cell_clip=-1)
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         elif(model_type == "ctgru"):
             self.fused_cell = CTGRU(model_size,cell_clip=-1)
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         elif(model_type == "ctrnn"):
             self.fused_cell = CTRNN(model_size,cell_clip=-1,global_feedback=True)
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         else:
             raise ValueError("Unknown model type '{}'".format(model_type))
         
@@ -149,18 +151,18 @@ class OzoneModel:
         if(self.sparsity_level > 0):
             self.constrain_op.extend(self.get_sparsity_ops())
 
-        self.y = tf.layers.Dense(2,activation=None)(head)
+        self.y = tf.compat.v1.layers.Dense(2,activation=None)(head)
         print("logit shape: ",str(self.y.shape))
         weight = tf.cast(self.target_y,dtype=tf.float32)*1.5+0.1
-        self.loss = tf.losses.sparse_softmax_cross_entropy(
+        self.loss = tf.compat.v1.losses.sparse_softmax_cross_entropy(
             labels = self.target_y,
             logits = self.y,
             weights=weight
             )
         print("loss shape: ",str(self.loss.shape))
-        self.loss = tf.reduce_mean(self.loss)
+        self.loss = tf.reduce_mean(input_tensor=self.loss)
 
-        optimizer = tf.train.AdamOptimizer(learning_rate)
+        optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate)
         self.train_step = optimizer.minimize(self.loss)
 
         model_prediction = tf.argmax(input=self.y, axis=2)
@@ -169,10 +171,10 @@ class OzoneModel:
         pred = tf.cast(model_prediction,dtype=tf.float32)
 
         # True/False positives/negatives
-        tp = tf.reduce_sum(lab*pred)
-        tn = tf.reduce_sum((1-lab)*(1-pred))
-        fp = tf.reduce_sum((1-lab)*(pred))
-        fn = tf.reduce_sum((lab)*(1-pred))
+        tp = tf.reduce_sum(input_tensor=lab*pred)
+        tn = tf.reduce_sum(input_tensor=(1-lab)*(1-pred))
+        fp = tf.reduce_sum(input_tensor=(1-lab)*(pred))
+        fn = tf.reduce_sum(input_tensor=(lab)*(1-pred))
 
         # don't divide by zero
         # Precision and Recall
@@ -181,8 +183,8 @@ class OzoneModel:
         # F1-score (Geometric mean of precision and recall)
         self.accuracy = 2*(self.prec*self.recall)/(self.prec+self.recall+0.000001)
 
-        self.sess = tf.InteractiveSession()
-        self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.compat.v1.InteractiveSession()
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         self.result_file = os.path.join("results","ozone","{}_{}_{:02d}.csv".format(model_type,model_size,int(100*self.sparsity_level)))
         if(not os.path.exists("results/ozone")):
@@ -195,10 +197,10 @@ class OzoneModel:
         if(not os.path.exists("tf_sessions/ozone")):
             os.makedirs("tf_sessions/ozone")
             
-        self.saver = tf.train.Saver()
+        self.saver = tf.compat.v1.train.Saver()
 
     def get_sparsity_ops(self):
-        tf_vars = tf.trainable_variables()
+        tf_vars = tf.compat.v1.trainable_variables()
         op_list = []
         self._debug_list_sparse_vars = []
         for v in tf_vars:
@@ -223,7 +225,7 @@ class OzoneModel:
     def sparse_var(self,v,sparsity_level):
         mask = np.random.choice([0, 1], size=v.shape, p=[sparsity_level,1-sparsity_level]).astype(np.float32)
         print("Mask mean: ",str(np.mean(mask)))
-        v_assign_op = tf.assign(v,v*mask)
+        v_assign_op = tf.compat.v1.assign(v,v*mask)
         print("Var[{}] will be sparsified with {:0.2f} sparsity level".format(
             v.name,sparsity_level
         ))

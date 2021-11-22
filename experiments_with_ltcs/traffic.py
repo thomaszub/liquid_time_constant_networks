@@ -12,6 +12,8 @@ import argparse
 import datetime as dt
 
 
+tf.compat.v1.disable_eager_execution()
+
 def load_trace():
     df = pd.read_csv("data/traffic/Metro_Interstate_Traffic_Volume.csv")
     holiday = (df["holiday"].values == None).astype(np.float32)
@@ -89,15 +91,15 @@ class TrafficModel:
     def __init__(self, model_type, model_size, learning_rate=0.001):
         self.model_type = model_type
         self.constrain_op = None
-        self.x = tf.placeholder(dtype=tf.float32, shape=[None, None, 7])
-        self.target_y = tf.placeholder(dtype=tf.float32, shape=[None, None])
+        self.x = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None, 7])
+        self.target_y = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, None])
 
         self.model_size = model_size
         head = self.x
         if model_type == "lstm":
-            self.fused_cell = tf.nn.rnn_cell.LSTMCell(model_size)
+            self.fused_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(model_size)
 
-            head, _ = tf.nn.dynamic_rnn(
+            head, _ = tf.compat.v1.nn.dynamic_rnn(
                 self.fused_cell, head, dtype=tf.float32, time_major=True
             )
         elif model_type.startswith("ltc"):
@@ -110,43 +112,43 @@ class TrafficModel:
             else:
                 self.wm._solver = ltc.ODESolver.SemiImplicit
 
-            head, _ = tf.nn.dynamic_rnn(
+            head, _ = tf.compat.v1.nn.dynamic_rnn(
                 self.wm, head, dtype=tf.float32, time_major=True
             )
             self.constrain_op = self.wm.get_param_constrain_op()
         elif model_type == "node":
             self.fused_cell = NODE(model_size, cell_clip=10)
-            head, _ = tf.nn.dynamic_rnn(
+            head, _ = tf.compat.v1.nn.dynamic_rnn(
                 self.fused_cell, head, dtype=tf.float32, time_major=True
             )
         elif model_type == "ctgru":
             self.fused_cell = CTGRU(model_size, cell_clip=-1)
-            head, _ = tf.nn.dynamic_rnn(
+            head, _ = tf.compat.v1.nn.dynamic_rnn(
                 self.fused_cell, head, dtype=tf.float32, time_major=True
             )
         elif model_type == "ctrnn":
             self.fused_cell = CTRNN(model_size, cell_clip=-1, global_feedback=True)
-            head, _ = tf.nn.dynamic_rnn(
+            head, _ = tf.compat.v1.nn.dynamic_rnn(
                 self.fused_cell, head, dtype=tf.float32, time_major=True
             )
         else:
             raise ValueError("Unknown model type '{}'".format(model_type))
 
         target_y = tf.expand_dims(self.target_y, axis=-1)
-        self.y = tf.layers.Dense(
+        self.y = tf.compat.v1.layers.Dense(
             1,
             activation=None,
-            kernel_initializer=tf.keras.initializers.TruncatedNormal(),
+            kernel_initializer=tf.compat.v1.keras.initializers.TruncatedNormal(),
         )(head)
         print("logit shape: ", str(self.y.shape))
-        self.loss = tf.reduce_mean(tf.square(target_y - self.y))
-        optimizer = tf.train.AdamOptimizer(learning_rate)
+        self.loss = tf.reduce_mean(input_tensor=tf.square(target_y - self.y))
+        optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate)
         self.train_step = optimizer.minimize(self.loss)
 
-        self.accuracy = tf.reduce_mean(tf.abs(target_y - self.y))
+        self.accuracy = tf.reduce_mean(input_tensor=tf.abs(target_y - self.y))
 
-        self.sess = tf.InteractiveSession()
-        self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.compat.v1.InteractiveSession()
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         self.result_file = os.path.join(
             "results", "traffic", "{}_{}.csv".format(model_type, model_size)
@@ -165,7 +167,7 @@ class TrafficModel:
         if not os.path.exists("tf_sessions/traffic"):
             os.makedirs("tf_sessions/traffic")
 
-        self.saver = tf.train.Saver()
+        self.saver = tf.compat.v1.train.Saver()
 
     def save(self):
         self.saver.save(self.sess, self.checkpoint_path)

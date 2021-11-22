@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy  as np
 import os
 
-class CTRNN(tf.nn.rnn_cell.RNNCell):
+class CTRNN(tf.compat.v1.nn.rnn_cell.RNNCell):
 
     def __init__(self, num_units,cell_clip=-1,global_feedback=False,fix_tau=True):
         self._num_units = num_units
@@ -48,10 +48,10 @@ class CTRNN(tf.nn.rnn_cell.RNNCell):
     def build(self,input_shape):
         pass
 
-    def _dense(self,units,inputs,activation,name,bias_initializer=tf.constant_initializer(0.0)):
+    def _dense(self,units,inputs,activation,name,bias_initializer=tf.compat.v1.constant_initializer(0.0)):
         input_size = int(inputs.shape[-1])
-        W = tf.get_variable('W_{}'.format(name), [input_size, units])
-        b = tf.get_variable("bias_{}".format(name), [units],initializer=bias_initializer)
+        W = tf.compat.v1.get_variable('W_{}'.format(name), [input_size, units])
+        b = tf.compat.v1.get_variable("bias_{}".format(name), [units],initializer=bias_initializer)
 
         y = tf.matmul(inputs,W) + b
         if(not activation is None):
@@ -69,10 +69,10 @@ class CTRNN(tf.nn.rnn_cell.RNNCell):
         # or 2: input of the RNN cell merged with the current state
 
         self._input_size = int(inputs.shape[-1])
-        with tf.variable_scope(scope or type(self).__name__):
-            with tf.variable_scope("RNN",reuse=tf.AUTO_REUSE):  # Reset gate and update gate.
+        with tf.compat.v1.variable_scope(scope or type(self).__name__):
+            with tf.compat.v1.variable_scope("RNN",reuse=tf.compat.v1.AUTO_REUSE):  # Reset gate and update gate.
                 if(not self.fix_tau):
-                    tau = tf.get_variable('tau', [],initializer=tf.constant_initializer(self.tau))
+                    tau = tf.compat.v1.get_variable('tau', [],initializer=tf.compat.v1.constant_initializer(self.tau))
                     self._tau_var = tau
                     tau = tf.nn.softplus(tau) # Make sure tau is positive
                 else:
@@ -101,7 +101,7 @@ class CTRNN(tf.nn.rnn_cell.RNNCell):
         return state,state
 
 
-class NODE(tf.nn.rnn_cell.RNNCell):
+class NODE(tf.compat.v1.nn.rnn_cell.RNNCell):
 
     def __init__(self, num_units,cell_clip=-1):
         self._num_units = num_units
@@ -164,10 +164,10 @@ class NODE(tf.nn.rnn_cell.RNNCell):
         input_f_prime = self._dense(units=self._num_units,inputs=fused_input,activation=tf.nn.tanh,name="step")
         return input_f_prime
 
-    def _dense(self,units,inputs,activation,name,bias_initializer=tf.constant_initializer(0.0)):
+    def _dense(self,units,inputs,activation,name,bias_initializer=tf.compat.v1.constant_initializer(0.0)):
         input_size = int(inputs.shape[-1])
-        W = tf.get_variable('W_{}'.format(name), [input_size, units])
-        b = tf.get_variable("bias_{}".format(name), [units],initializer=bias_initializer)
+        W = tf.compat.v1.get_variable('W_{}'.format(name), [input_size, units])
+        b = tf.compat.v1.get_variable("bias_{}".format(name), [units],initializer=bias_initializer)
 
         y = tf.matmul(inputs,W) + b
         if(not activation is None):
@@ -185,8 +185,8 @@ class NODE(tf.nn.rnn_cell.RNNCell):
         # or 2: input of the RNN cell merged with the current state
 
         self._input_size = int(inputs.shape[-1])
-        with tf.variable_scope(scope or type(self).__name__):
-            with tf.variable_scope("RNN",reuse=tf.AUTO_REUSE):  # Reset gate and update gate.
+        with tf.compat.v1.variable_scope(scope or type(self).__name__):
+            with tf.compat.v1.variable_scope("RNN",reuse=tf.compat.v1.AUTO_REUSE):  # Reset gate and update gate.
 
                 state = self._ode_step_runge_kutta(inputs,state)
                     
@@ -194,7 +194,7 @@ class NODE(tf.nn.rnn_cell.RNNCell):
 
 
 
-class CTGRU(tf.nn.rnn_cell.RNNCell):
+class CTGRU(tf.compat.v1.nn.rnn_cell.RNNCell):
     # https://arxiv.org/abs/1710.04110
     def __init__(self, num_units,M=8,cell_clip=-1):
         self._num_units = num_units
@@ -218,10 +218,10 @@ class CTGRU(tf.nn.rnn_cell.RNNCell):
     def build(self,input_shape):
         pass
 
-    def _dense(self,units,inputs,activation,name,bias_initializer=tf.constant_initializer(0.0)):
+    def _dense(self,units,inputs,activation,name,bias_initializer=tf.compat.v1.constant_initializer(0.0)):
         input_size = int(inputs.shape[-1])
-        W = tf.get_variable('W_{}'.format(name), [input_size, units])
-        b = tf.get_variable("bias_{}".format(name), [units],initializer=bias_initializer)
+        W = tf.compat.v1.get_variable('W_{}'.format(name), [input_size, units])
+        b = tf.compat.v1.get_variable("bias_{}".format(name), [units],initializer=bias_initializer)
 
         y = tf.matmul(inputs,W) + b
         if(not activation is None):
@@ -234,24 +234,24 @@ class CTGRU(tf.nn.rnn_cell.RNNCell):
 
         # CT-GRU input is actually a matrix and not a vector
         h_hat = tf.reshape(state,[-1,self._num_units,self.M])
-        h = tf.reduce_sum(h_hat,axis=2)
+        h = tf.reduce_sum(input_tensor=h_hat,axis=2)
         state = None # Set state to None, to avoid misuses (bugs) in the code below
 
-        with tf.variable_scope(scope or type(self).__name__):
-            with tf.variable_scope("Gates"):  # Reset gate and update gate.
+        with tf.compat.v1.variable_scope(scope or type(self).__name__):
+            with tf.compat.v1.variable_scope("Gates"):  # Reset gate and update gate.
                 fused_input = tf.concat([inputs,h],axis=-1)
-                ln_tau_r = tf.layers.Dense(self._num_units*self.M,activation=None,name="tau_r")(fused_input)
+                ln_tau_r = tf.compat.v1.layers.Dense(self._num_units*self.M,activation=None,name="tau_r")(fused_input)
                 ln_tau_r = tf.reshape(ln_tau_r,shape=[-1,self._num_units,self.M])
                 sf_input_r = -tf.square(ln_tau_r-self.ln_tau_table)
                 rki = tf.nn.softmax(logits=sf_input_r,axis=2)
 
-                q_input = tf.reduce_sum(rki*h_hat,axis=2)
+                q_input = tf.reduce_sum(input_tensor=rki*h_hat,axis=2)
                 reset_value = tf.concat([inputs,q_input],axis=1)
                 qk = self._dense(units=self._num_units,inputs=reset_value,activation=tf.nn.tanh,name="detect_signal")
 
                 qk = tf.reshape(qk,[-1,self._num_units,1]) # in order to broadcast
 
-                ln_tau_s = tf.layers.Dense(self._num_units*self.M,activation=None,name="tau_s")(fused_input)
+                ln_tau_s = tf.compat.v1.layers.Dense(self._num_units*self.M,activation=None,name="tau_s")(fused_input)
                 ln_tau_s = tf.reshape(ln_tau_s,shape=[-1,self._num_units,self.M])
                 sf_input_s = -tf.square(ln_tau_s-self.ln_tau_table)
                 ski = tf.nn.softmax(logits=sf_input_s,axis=2)
@@ -261,7 +261,7 @@ class CTGRU(tf.nn.rnn_cell.RNNCell):
                 if(self.cell_clip > 0):
                     h_hat_next = tf.clip_by_value(h_hat_next,-self.cell_clip,self.cell_clip)
                 # Compute new state
-                h_next = tf.reduce_sum(h_hat_next,axis=2)
+                h_next = tf.reduce_sum(input_tensor=h_hat_next,axis=2)
                 h_hat_next_flat = tf.reshape(h_hat_next,shape=[-1,self._num_units*self.M])
 
         return h_next, h_hat_next_flat

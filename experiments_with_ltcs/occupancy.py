@@ -9,6 +9,8 @@ from ctrnn_model import CTRNN, NODE, CTGRU
 import argparse
 import pandas as pd
 
+tf.compat.v1.disable_eager_execution()
+
 def read_file(filename):
     df = pd.read_csv(filename)                                    
 
@@ -85,15 +87,15 @@ class OccupancyModel:
         self.model_type = model_type
         self.constrain_op = []
         self.sparsity_level = sparsity_level
-        self.x = tf.placeholder(dtype=tf.float32,shape=[None,None,5])
-        self.target_y = tf.placeholder(dtype=tf.int32,shape=[None,None])
+        self.x = tf.compat.v1.placeholder(dtype=tf.float32,shape=[None,None,5])
+        self.target_y = tf.compat.v1.placeholder(dtype=tf.int32,shape=[None,None])
 
         self.model_size = model_size
         head = self.x
         if(model_type == "lstm"):
-            self.fused_cell = tf.nn.rnn_cell.LSTMCell(model_size)
+            self.fused_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(model_size)
 
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         elif(model_type.startswith("ltc")):
             learning_rate = 0.005 # LTC needs a higher learning rate
             self.wm = ltc.LTCCell(model_size)
@@ -104,37 +106,37 @@ class OccupancyModel:
             else:
                 self.wm._solver = ltc.ODESolver.SemiImplicit
 
-            head,_ = tf.nn.dynamic_rnn(self.wm,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.wm,head,dtype=tf.float32,time_major=True)
             self.constrain_op.extend(self.wm.get_param_constrain_op())
         elif(model_type == "node"):
             self.fused_cell = NODE(model_size,cell_clip=-1)
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         elif(model_type == "ctgru"):
             self.fused_cell = CTGRU(model_size,cell_clip=-1)
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         elif(model_type == "ctrnn"):
             self.fused_cell = CTRNN(model_size,cell_clip=-1,global_feedback=True)
-            head,_ = tf.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
+            head,_ = tf.compat.v1.nn.dynamic_rnn(self.fused_cell,head,dtype=tf.float32,time_major=True)
         else:
             raise ValueError("Unknown model type '{}'".format(model_type))
 
         if(self.sparsity_level > 0):
             self.constrain_op.extend(self.get_sparsity_ops())
 
-        self.y = tf.layers.Dense(2,activation=None)(head)
+        self.y = tf.compat.v1.layers.Dense(2,activation=None)(head)
         print("logit shape: ",str(self.y.shape))
-        self.loss = tf.reduce_mean(tf.losses.sparse_softmax_cross_entropy(
+        self.loss = tf.reduce_mean(input_tensor=tf.compat.v1.losses.sparse_softmax_cross_entropy(
             labels = self.target_y,
             logits = self.y,
         ))
-        optimizer = tf.train.AdamOptimizer(learning_rate)
+        optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate)
         self.train_step = optimizer.minimize(self.loss)
 
         model_prediction = tf.argmax(input=self.y, axis=2)
-        self.accuracy = tf.reduce_mean(tf.cast(tf.equal(model_prediction, tf.cast(self.target_y,tf.int64)), tf.float32))
+        self.accuracy = tf.reduce_mean(input_tensor=tf.cast(tf.equal(model_prediction, tf.cast(self.target_y,tf.int64)), tf.float32))
 
-        self.sess = tf.InteractiveSession()
-        self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.compat.v1.InteractiveSession()
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         self.result_file = os.path.join("results","occupancy","{}_{}_{:02d}.csv".format(model_type,model_size,int(100*self.sparsity_level)))
         if(not os.path.exists("results/occupancy")):
@@ -147,10 +149,10 @@ class OccupancyModel:
         if(not os.path.exists("tf_sessions/occupancy")):
             os.makedirs("tf_sessions/occupancy")
             
-        self.saver = tf.train.Saver()
+        self.saver = tf.compat.v1.train.Saver()
 
     def get_sparsity_ops(self):
-        tf_vars = tf.trainable_variables()
+        tf_vars = tf.compat.v1.trainable_variables()
         op_list = []
         for v in tf_vars:
             # print("Variable {}".format(str(v)))
@@ -168,7 +170,7 @@ class OccupancyModel:
         
     def sparse_var(self,v,sparsity_level):
         mask = np.random.choice([0, 1], size=v.shape, p=[sparsity_level,1-sparsity_level]).astype(np.float32)
-        v_assign_op = tf.assign(v,v*mask)
+        v_assign_op = tf.compat.v1.assign(v,v*mask)
         print("Var[{}] will be sparsified with {:0.2f} sparsity level".format(
             v.name,sparsity_level
         ))
