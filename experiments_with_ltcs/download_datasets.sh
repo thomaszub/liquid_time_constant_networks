@@ -4,8 +4,8 @@
 
 # Download and extract human activity data
 curl -O https://archive.ics.uci.edu/ml/machine-learning-databases/00240/UCI%20HAR%20Dataset.zip
-unzip UCI\ HAR\ Dataset.zip -d data/har
-rm UCI\ HAR\ Dataset.zip
+unzip UCI%20HAR%20Dataset.zip -d data/har
+rm UCI%20HAR%20Dataset.zip
 
 # Download and extract gesture data
 curl -O https://archive.ics.uci.edu/ml/machine-learning-databases/00302/gesture_phase_dataset.zip
